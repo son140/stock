@@ -175,7 +175,3 @@ except Exception as e:
     )
 
     st.code(str(e))
-streamlit
-yfinance
-pandas
-plotly
