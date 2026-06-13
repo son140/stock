@@ -4,8 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(
-    page_title="📈 Global Tech Stock Dashboard",
-    page_icon="📊",
+    page_title="Stock Performance Dashboard",
     layout="wide"
 )
 
@@ -13,68 +12,49 @@ st.markdown("""
 <style>
 
 .stApp{
-background:
-linear-gradient(
-180deg,
-#f8fbff,
-#f4f7ff,
-#ffffff
-);
+background:#f7f9fc;
 }
 
-.metric{
-padding:18px;
-border-radius:20px;
+.block{
 background:white;
-box-shadow:0 6px 20px rgba(0,0,0,0.06);
+padding:24px;
+border-radius:16px;
+box-shadow:0 4px 18px rgba(0,0,0,.05);
 }
 
-.big{
-font-size:42px;
-font-weight:800;
+.title{
+font-size:40px;
+font-weight:700;
 }
 
-.small{
+.subtitle{
 color:#666;
 }
 
 </style>
 """,
-unsafe_allow_html=True
-)
+unsafe_allow_html=True)
 
 stocks = {
-    "삼성전자":"005930.KS",
-    "SK하이닉스":"000660.KS",
-    "구글":"GOOGL",
-    "마이크로소프트":"MSFT",
-    "애플":"AAPL"
+    "Samsung Electronics":"005930.KS",
+    "SK hynix":"000660.KS",
+    "Alphabet":"GOOGL",
+    "Microsoft":"MSFT",
+    "Apple":"AAPL"
 }
 
-st.markdown(
-"""
-<div class='big'>
-📈 최근 1년 주가 비교 분석
-</div>
-
-<div class='small'>
-삼성전자 · SK하이닉스 · 구글 · Microsoft · Apple
-</div>
-""",
-unsafe_allow_html=True
-)
 
 @st.cache_data
-def load_data():
+def load():
 
-    raw = yf.download(
+    data = yf.download(
         list(stocks.values()),
         period="1y",
         auto_adjust=True,
         progress=False
     )
 
-    close = raw["Close"]
+    close = data["Close"]
 
     close.columns = list(stocks.keys())
 
@@ -82,27 +62,51 @@ def load_data():
 
     return close
 
+
+st.markdown("""
+<div class="block">
+
+<div class="title">
+Stock Performance Dashboard
+</div>
+
+<div class="subtitle">
+1-Year Comparative Analysis
+</div>
+
+</div>
+""",
+unsafe_allow_html=True)
+
 try:
 
-    data = load_data()
+    prices = load()
 
-    normalized = (
-        data /
-        data.iloc[0]
+    returns = (
+        prices
+        /
+        prices.iloc[0]
     ) * 100
 
+    st.markdown("### Price Performance")
+
     fig = px.line(
-        normalized,
-        x=normalized.index,
-        y=normalized.columns,
-        title="최근 1년 누적 주가 변화 (시작=100)"
+        returns,
+        x=returns.index,
+        y=returns.columns
     )
 
     fig.update_layout(
-        height=700,
+        template="plotly_white",
+        height=650,
         hovermode="x unified",
-        legend_title="기업",
-        template="plotly_white"
+        legend_title="Company",
+        margin=dict(
+            l=30,
+            r=30,
+            t=30,
+            b=30
+        )
     )
 
     st.plotly_chart(
@@ -110,68 +114,75 @@ try:
         use_container_width=True
     )
 
-    st.subheader("📌 핵심 요약")
+    st.markdown("### Key Metrics")
 
     cols = st.columns(5)
 
-    for idx, company in enumerate(data.columns):
+    total = (
+        prices.iloc[-1]
+        /
+        prices.iloc[0]
+        - 1
+    ) * 100
 
-        latest = data[company].iloc[-1]
+    latest = prices.iloc[-1]
 
-        change = (
-            (
-                latest
-                /
-                data[company].iloc[0]
-            ) - 1
-        ) * 100
+    for i, company in enumerate(prices.columns):
 
-        with cols[idx]:
+        with cols[i]:
 
             st.metric(
-                company,
-                f"{latest:,.0f}",
-                f"{change:+.1f}%"
+                label=company,
+                value=f"{latest[company]:,.0f}",
+                delta=f"{total[company]:+.2f}%"
             )
 
     st.markdown("---")
 
-    winner = (
-        (
-            data.iloc[-1]
-            /
-            data.iloc[0]
-            - 1
-        )
-        .idxmax()
-    )
+    st.markdown("### Summary")
 
-    loser = (
-        (
-            data.iloc[-1]
-            /
-            data.iloc[0]
-            - 1
-        )
-        .idxmin()
-    )
+    best = total.idxmax()
+    worst = total.idxmin()
 
-    st.subheader("🧠 자동 분석")
+    c1, c2 = st.columns(2)
 
-    st.write(
-        f"""
-📈 최근 1년 기준 가장 상승폭이 큰 종목: **{winner}**
+    with c1:
 
-📉 상대적으로 수익률이 낮은 종목: **{loser}**
+        st.info(
+f"""
+Best Performer
 
-💡 그래프에서 확대·축소·범례 클릭으로 종목별 비교 가능
+{best}
+
+Return:
+{total[best]:.2f}%
 """
+)
+
+    with c2:
+
+        st.info(
+f"""
+Lowest Performer
+
+{worst}
+
+Return:
+{total[worst]:.2f}%
+"""
+)
+
+    st.markdown("### Raw Data")
+
+    st.dataframe(
+        prices.tail(20),
+        use_container_width=True
     )
 
 except Exception as e:
 
     st.error(
-        "데이터를 불러오지 못했어요 😢"
+        "Failed to load stock data."
     )
 
     st.code(str(e))
